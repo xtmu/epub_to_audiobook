@@ -32,3 +32,4 @@ private_examples/
 # custom
 scripts/*
 !tts.py
+!check_end.py
