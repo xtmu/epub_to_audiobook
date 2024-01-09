@@ -2,7 +2,8 @@ import asyncio
 import logging
 import math
 
-from edge_tts.communicate import Communicate
+import edge_tts
+import os
 
 from audiobook_generator.config.general_config import GeneralConfig
 from audiobook_generator.core.audio_tags import AudioTags
@@ -321,6 +322,9 @@ def get_supported_voices():
 class EdgeTTSProvider(BaseTTSProvider):
     def __init__(self, config: GeneralConfig):
         logger.setLevel(config.log)
+
+        print("\033[33mPlease set proxy off\033[0m")
+
         # TTS provider specific config
         config.voice_name = config.voice_name or "en-US-GuyNeural"
         config.output_format = config.output_format or "audio-24khz-48kbitrate-mono-mp3"
@@ -347,8 +351,7 @@ class EdgeTTSProvider(BaseTTSProvider):
             output_file: str,
             audio_tags: AudioTags,
     ):
-
-        communicate = Communicate(
+        communicate = edge_tts.Communicate(
             text,
             self.config.voice_name,
             rate=self.config.voice_rate,
@@ -356,9 +359,28 @@ class EdgeTTSProvider(BaseTTSProvider):
             pitch=self.config.voice_pitch,
             proxy=self.config.proxy
         )
+        submaker = edge_tts.SubMaker()
+
+        async def _task() -> None:
+            with open(output_file, "wb") as file:
+                async for chunk in communicate.stream():
+                    if chunk["type"] == "audio":
+                        file.write(chunk["data"])
+                    elif chunk["type"] == "WordBoundary":
+                        submaker.create_sub((chunk["offset"], chunk["duration"]), chunk["text"])
+
+            with open(os.path.splitext(output_file)[0] + ".vtt", "w", encoding="utf-8") as vtt:
+                vtt.write(submaker.generate_subs())
+
+        # with subtitle
         asyncio.run(
-            communicate.save(output_file)
+            _task()
         )
+
+        # # without subtitle
+        # asyncio.run(
+        #     communicate.save(output_file)
+        # )
 
         set_audio_tags(output_file, audio_tags)
 

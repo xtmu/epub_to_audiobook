@@ -30,4 +30,5 @@ audiobook_output/
 private_examples/
 
 # custom
-scripts/
+scripts/*
+!tts.py
